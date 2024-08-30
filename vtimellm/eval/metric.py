@@ -89,7 +89,7 @@ def grounding_metrics(all_logs):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--log_path", type=str, default='vtimellm/eval/log/example_log.txt')
-    parser.add_argument("--task", type=str, default='all', choices=['all', 'grounding', 'captioning'])
+    parser.add_argument("--task", type=str, default='grounding', choices=['all', 'grounding', 'captioning'])
     parser.add_argument("--data_path", type=str, default='vtimellm/eval/data_example.json')
     args = parser.parse_args()
 

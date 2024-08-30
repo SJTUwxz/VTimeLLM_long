@@ -29,13 +29,14 @@ def parse_args():
     parser.add_argument("--clip_path", type=str, default="checkpoints/clip/ViT-L-14.pt")
     parser.add_argument("--pretrain_mm_mlp_adapter", type=str, default="checkpoints/vtimellm-vicuna-v1-5-7b-stage1/mm_projector.bin")
     parser.add_argument("--stage2", type=str, default="checkpoints/vtimellm-vicuna-v1-5-7b-stage2")
-    parser.add_argument("--stage3", type=str, default="checkpoints/vtimellm-vicuna-v1-5-7b-stage3")
+    parser.add_argument("--stage3", type=str, default=None)
     parser.add_argument("--model_base", type=str, default="/path/to/vicuna-7b-v1.5")
     parser.add_argument("--data_path", type=str, default="vtimellm/eval/data_example.json")
     parser.add_argument("--feat_folder", type=str, default=None)
     parser.add_argument("--video_folder", type=str, default=None)
-    parser.add_argument("--task", type=str, default='all', choices=['all', 'grounding', 'captioning'])
+    parser.add_argument("--task", type=str, default='grounding', choices=['all', 'grounding', 'captioning'])
     parser.add_argument("--log_path", type=str, default='vtimellm/eval/log/example_log.txt')
+    parser.add_argument("--num_features_per_video", type=int, default=100)
     args = parser.parse_args()
     return args
 
@@ -71,6 +72,8 @@ questions = {
 
 if __name__ == "__main__":
     args = parse_args()
+    num_features_per_video = args.num_features_per_video
+
     disable_torch_init()
     tokenizer, model, context_len = load_pretrained_model(args, args.stage2, args.stage3)
     model = model.cuda()
@@ -81,7 +84,7 @@ if __name__ == "__main__":
         clip_model.eval()
         clip_model = clip_model.cuda()
 
-        video_loader = VideoExtractor(N=100)
+        video_loader = VideoExtractor(N=num_features_per_video)
 
         transform = Compose([
             Resize(224, interpolation=BICUBIC),
@@ -90,7 +93,12 @@ if __name__ == "__main__":
         ])
 
     js = json.load(open(args.data_path))
+    num = 0
     for id, data in tqdm(js.items()):
+        num += 1
+        if num_features_per_video == 400:
+            if num == 5:
+                break
         features = None
 
         if args.feat_folder is not None:

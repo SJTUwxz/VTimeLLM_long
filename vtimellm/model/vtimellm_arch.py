@@ -32,7 +32,6 @@ class VTimeLLMMetaForCausalLM(ABC):
         # print(position_ids, attention_mask)
         # if past_key_values:
         #     print(past_key_values[-1][-1].shape)
-        # print(input_ids.shape, position_ids.shape, attention_mask.shape, past_key_values.shape, images)
         if images is None or input_ids.shape[1] == 1:
             if past_key_values is not None and images is not None and input_ids.shape[1] == 1:
                 if self.get_model().config.model_type == 'chatglm':
@@ -56,7 +55,7 @@ class VTimeLLMMetaForCausalLM(ABC):
         else:
             image_features = self.get_model().mm_projector(images)
         # print([image.shape for image in image_features])
-        
+
         _labels = labels
         _position_ids = position_ids
         _attention_mask = attention_mask

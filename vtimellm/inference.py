@@ -23,7 +23,7 @@ import numpy as np
 import clip
 
 
-def inference(model, image, query, tokenizer):
+def inference(model, image, query, tokenizer, do_sample=True):
     conv = conv_templates["v1"].copy()
     conv.append_message(conv.roles[0], query)
     conv.append_message(conv.roles[1], None)
@@ -38,7 +38,7 @@ def inference(model, image, query, tokenizer):
         output_ids = model.generate(
             input_ids,
             images=image[None,].cuda(),
-            do_sample=True,
+            do_sample=do_sample,
             temperature=0.05,
             num_beams=1,
             # no_repeat_ngram_size=3,
@@ -68,6 +68,7 @@ def parse_args():
     parser.add_argument("--stage2", type=str, default="checkpoints/vtimellm-vicuna-v1-5-7b-stage2")
     parser.add_argument("--stage3", type=str, default="checkpoints/vtimellm-vicuna-v1-5-7b-stage3")
     parser.add_argument("--video_path", type=str, default="images/demo.mp4")
+    parser.add_argument("--num_features_per_video", type=int, default=100)
     args = parser.parse_args()
 
     return args
@@ -79,12 +80,13 @@ if __name__ == "__main__":
     model = model.cuda()
     # model.get_model().mm_projector.to(torch.float16)
     model.to(torch.float16)
+    num_features_per_video = args.num_features_per_video
 
     clip_model, _ = clip.load(args.clip_path)
     clip_model.eval()
     clip_model = clip_model.cuda()
 
-    video_loader = VideoExtractor(N=100)
+    video_loader = VideoExtractor(N=num_features_per_video)
     _, images = video_loader.extract({'id': None, 'video': args.video_path})
 
     transform = Compose([

@@ -295,7 +295,7 @@ def train():
         else:
             rank0_print("Adding LoRA adapters...")
             model = get_peft_model(model, lora_config)
-        # print_trainable_parameters(model)
+        print_trainable_parameters(model)
 
     if 'chatglm' in model_args.model_name_or_path:
         tokenizer = transformers.AutoTokenizer.from_pretrained(

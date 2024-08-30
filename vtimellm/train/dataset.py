@@ -19,6 +19,7 @@ class DataArguments:
                            metadata={"help": "Path to the training data."})
     lazy_preprocess: bool = False
     feat_folder: Optional[str] = field(default=None)
+    num_features_per_video: Optional[int] = field(default=100)
 
 def _tokenize_fn(strings: Sequence[str],
                  tokenizer: transformers.PreTrainedTokenizer) -> Dict:
@@ -370,6 +371,7 @@ class LazySupervisedDataset(Dataset):
         self.tokenizer = tokenizer
         self.list_data_dict = json.load(open(data_path, "r"))
         self.data_args = data_args
+        self.num_features_per_video = data_args.num_features_per_video
 
     def __len__(self):
         return len(self.list_data_dict)
@@ -383,25 +385,35 @@ class LazySupervisedDataset(Dataset):
             data_type = 'image'
 
         if 'meta' in source:
-            def convert(duration, x):
-                x = x / duration * 100
-                x = str(min(round(x), 99))
-                if len(x) == 1:
-                    x = "0" + x
+            def convert(duration, x, num_features_per_video):
+                x = x / duration * num_features_per_video 
+                x = str(min(round(x), (num_features_per_video-1)))
+                if num_features_per_video > 100:
+                    if len(x) == 1:
+                        x = "00" + x
+                    elif len(x) == 2:
+                        x = "0" + x
+                else:
+                    if len(x) == 1:
+                        x = "0" + x
                 return x
 
             replace_set = []
             for k, v in source['meta']['token'].items():
-                replace_set.append((k, convert(source['meta']['duration'], v)))
+                replace_set.append((k, convert(source['meta']['duration'], v, self.num_features_per_video)))
             for l in range(len(source['conversations'])):
                 for x1, x2 in replace_set:
                     source['conversations'][l]['value'] = source['conversations'][l]['value'].replace(x1, x2)
 
-        image = torch.zeros((100 if data_type == 'video' else 1, 768), dtype=torch.float16)
+
+        image = torch.zeros((self.num_features_per_video if data_type == 'video' else 1, 768), dtype=torch.float16)
 
 
         try:
-            feature_path = '{}/{}.npy'.format(self.data_args.feat_folder, source['id'])
+            if f"feat{self.num_features_per_video}_folder" in source:
+                feature_path = '{}/{}.npy'.format(source[f"feat{self.num_features_per_video}_folder"], source['id'])
+            else:
+                feature_path = '{}/{}.npy'.format(self.data_args.feat_folder, source['id'])
             image = np.load(feature_path) # <N, 768> float16
             image = torch.from_numpy(image)
             if data_type == 'image' and len(image.shape) == 1: # <768>
@@ -456,6 +468,8 @@ class DataCollatorForSupervisedDataset(object):
             else:
                 batch['images'] = images
 
+
+        # batched image shape: [bs, N_frames, 768]
         return batch
 
 
