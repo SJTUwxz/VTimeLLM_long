@@ -40,12 +40,12 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def iou(outputs, gt):
+def iou(outputs, gt, num_features_per_video):
     matches = re.search(r"(\d{2}) (to|and) (\d{2})", outputs)
     if not matches:
         return 0
-    from_number = float(matches.group(1)) / 100
-    to_number = float(matches.group(3)) / 100
+    from_number = float(matches.group(1)) / num_features_per_video 
+    to_number = float(matches.group(3)) / num_features_per_video
     s, e = gt
     intersection = max(0, min(to_number, e) - max(from_number, s))
     union = max(to_number, e) - min(from_number, s)
@@ -78,6 +78,8 @@ if __name__ == "__main__":
     tokenizer, model, context_len = load_pretrained_model(args, args.stage2, args.stage3)
     model = model.cuda()
     model.to(torch.float16)
+    if os.path.exists(args.log_path):
+        os.remove(args.log_path)
 
     if args.video_folder is not None:
         clip_model, _ = clip.load(args.clip_path)
@@ -93,18 +95,14 @@ if __name__ == "__main__":
         ])
 
     js = json.load(open(args.data_path))
-    num = 0
     for id, data in tqdm(js.items()):
-        num += 1
-        if num_features_per_video == 400:
-            if num == 5:
-                break
         features = None
 
         if args.feat_folder is not None:
             feat_path = os.path.join(args.feat_folder, f"{id}.npy")
             if os.path.isfile(feat_path):
                 features = torch.from_numpy(np.load(feat_path)).cuda()
+                assert features.shape[0] == num_features_per_video, f"number of features per video doesn't match!! .npy has ${features.shape[0]} features while we are evaluating on ${num_features_per_video} features."
 
         if features is None and args.video_folder is not None:
             for ext in ['mp4', 'mkv', 'webm']:
@@ -135,5 +133,5 @@ if __name__ == "__main__":
                 for query_id, query in enumerate(questions['grounding']):
                     answer = inference(model, features, "<video>\n" + query.format(sentence), tokenizer)
                     gt = (timestamps[0] / data['duration'], timestamps[1] / data['duration'])
-                    u = iou(answer, gt)
+                    u = iou(answer, gt, num_features_per_video=num_features_per_video)
                     write_log(args.log_path, id, 'grounding', query_id, answer, info={"sentence_id": sentence_id, 'iou': u})
