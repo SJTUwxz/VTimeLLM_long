@@ -41,7 +41,10 @@ def parse_args():
     return args
 
 def iou(outputs, gt, num_features_per_video):
-    matches = re.search(r"(\d{2}) (to|and) (\d{2})", outputs)
+    if num_features_per_video == 100:
+        matches = re.search(r"(\d{2}) (to|and) (\d{2})", outputs)
+    else:
+        matches = re.search(r"(\d+) (to|and) (\d+)", outputs)
     if not matches:
         return 0
     from_number = float(matches.group(1)) / num_features_per_video 
@@ -134,4 +137,5 @@ if __name__ == "__main__":
                     answer = inference(model, features, "<video>\n" + query.format(sentence), tokenizer)
                     gt = (timestamps[0] / data['duration'], timestamps[1] / data['duration'])
                     u = iou(answer, gt, num_features_per_video=num_features_per_video)
+                    # print(num_features_per_video, gt, answer, u, flush=True)
                     write_log(args.log_path, id, 'grounding', query_id, answer, info={"sentence_id": sentence_id, 'iou': u})
