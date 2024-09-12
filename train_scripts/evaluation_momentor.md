@@ -30,6 +30,7 @@ num_features_per_video=400
 lr=1e-4
 exp_name=momentor-${num_features_per_video}-${lr}-${ngpus}gpu-6questions
 output_dir=./checkpoints/momentor_results/${exp_name}-ckpt${checkpoint}-eval
+rm -rf ${output_dir}
 mkdir -p $output_dir
 sbatch --gpus=1 -o ${output_dir}/%j.out -J ${exp_name}-${checkpoint}-eval -N 1 $SLURM_ARGS --wrap="python vtimellm/eval/eval.py --data_path ./data/vtimellm_eval/val_2.json --feat_folder /mnt/mir/datasets/vlm-evaluation-datasets/ActivityNet-Captions/clip_features_${num_features_per_video} --log_path ${output_dir}/output.log --model_base ./checkpoints/vicuna-7b-v1.5/ --stage2 checkpoints/momentor_exps/${exp_name}/checkpoint-${checkpoint}/ --num_features_per_video ${num_features_per_video}"
 done

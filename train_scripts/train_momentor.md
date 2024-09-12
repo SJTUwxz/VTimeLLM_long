@@ -20,6 +20,13 @@ for i in `seq 1 24`; do
   "
 done
 
+# 100 frames, 1 CLS + 64 patch features per frame
+for i in `seq 1 4`; do
+  sbatch -p h100 --gpus 1 -n 1 -J momentor-10M/clip_features/${i} --out {i}.out \
+      $SLURM_ARGS --wrap="python unify_scripts/clip_all_features.py --video_folder /mnt/mir/datasets/vlm-datasets/momentor-10M/videos/ --save_dir /mnt/bum/datasets/vlm-datasets/momentor/clip_all_features_100frm/
+  "
+done
+
 ```
 
 # Stage 2 train on momentor

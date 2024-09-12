@@ -49,4 +49,33 @@ mkdir -p $output_dir
 sbatch --gpus=$ngpus -o ${output_dir}/%j.out -J ${exp_name} -N 1 $SLURM_ARGS --wrap="python vtimellm/eval/eval.py --data_path ./data/vtimellm_eval/val_2.json --feat_folder ./data/vtimellm_train/stage3_clip_feat/ --log_path ${output_dir}/released_checkpoint_output.log --model_base ./checkpoints/vicuna-7b-v1.5/ --stage2 checkpoints/replicated_exps/vtimellm-vicuna-v1-5-7b-stage2"
 
 
+
+```
+
+# Charades-STA evaluation
+```bash
+python vtimellm/eval/metric.py \
+     --data_path ./data/vtimellm_eval/charades_sta_test.json \
+     --log_path ${output_dir}/output.log \
+
+
+ngpus=8
+exp_name=stage3_released_checkpoint
+output_dir=./checkpoints/replicated_exps/${exp_name}-charades
+mkdir -p $output_dir
+sbatch --gpus=$ngpus -o ${output_dir}/%j.out -J ${exp_name} -N 1 $SLURM_ARGS --wrap="python vtimellm/eval/eval.py --data_path ./data/vtimellm_eval/charades_sta_test.json --feat_folder /mnt/mir/datasets/vlm-evaluation-datasets/Charades-STA/clip_features_100/ --log_path ${output_dir}/released_checkpoint_output.log --model_base ./checkpoints/vicuna-7b-v1.5/ --stage3 checkpoints/vtimellm-vicuna-v1-5-7b-stage3"
+
+ngpus=8
+exp_name=stage2_released_checkpoint
+output_dir=./checkpoints/replicated_exps/${exp_name}-charades
+mkdir -p $output_dir
+sbatch --gpus=$ngpus -o ${output_dir}/%j.out -J ${exp_name} -N 1 $SLURM_ARGS --wrap="python vtimellm/eval/eval.py --data_path ./data/vtimellm_eval/charades_sta_test.json --feat_folder /mnt/mir/datasets/vlm-evaluation-datasets/Charades-STA/clip_features_100/ --log_path ${output_dir}/released_checkpoint_output.log --model_base ./checkpoints/vicuna-7b-v1.5/"
+
+ngpus=1
+exp_name=stage2_trained_ckpt_eval
+output_dir=./checkpoints/replicated_exps/${exp_name}-charades
+rm -rf $output_dir
+mkdir -p $output_dir
+sbatch --gpus=$ngpus -o ${output_dir}/%j.out -J ${exp_name} -N 1 $SLURM_ARGS --wrap="python vtimellm/eval/eval.py --data_path ./data/vtimellm_eval/charades_sta_test.json --feat_folder /mnt/mir/datasets/vlm-evaluation-datasets/Charades-STA/clip_features_100/ --log_path ${output_dir}/released_checkpoint_output.log --model_base ./checkpoints/vicuna-7b-v1.5/ --stage2 checkpoints/replicated_exps/vtimellm-vicuna-v1-5-7b-stage2"
+
 ```

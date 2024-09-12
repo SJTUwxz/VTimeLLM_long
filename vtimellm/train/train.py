@@ -31,6 +31,7 @@ from vtimellm.train.dataset import make_supervised_data_module, DataArguments
 from vtimellm.model import VTimeLLMLlamaForCausalLM, VTimeLLMChatGLMForCausalLM
 from vtimellm.model.builder import load_lora
 from vtimellm.mm_utils import print_trainable_parameters
+from vtimellm.constants import SEG_END, SEG_START
 
 local_rank = None
 
@@ -45,6 +46,9 @@ class ModelArguments:
     version: Optional[str] = field(default="v0")
     tune_mm_mlp_adapter: bool = field(default=False)
     pretrain_mm_mlp_adapter: Optional[str] = field(default=None)
+    temporal_loss: bool=field(default=False)
+    projector_type: Optional[str] = field(default="simple_linear")
+    loss_type: Optional[str] = field(default="vanilla")
 
 
 @dataclass
@@ -311,6 +315,11 @@ def train():
             use_fast=False,
         )
         tokenizer.pad_token = tokenizer.unk_token
+
+    if data_args.add_temporal_tokens:
+        print("using temporal loss, add two special tokens <SEG_START> and <SEG_END>.")
+        num_new_tokens = tokenizer.add_tokens([SEG_START, SEG_END], special_tokens=True)
+        model.resize_token_embeddings(len(tokenizer))
 
     
     if model_args.version in conversation_lib.conv_templates:

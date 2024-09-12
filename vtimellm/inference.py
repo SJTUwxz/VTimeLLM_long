@@ -105,4 +105,3 @@ if __name__ == "__main__":
     print("query: ", query)
     print("answer: ", inference(model, features, "<video>\n " + query, tokenizer))
 
-

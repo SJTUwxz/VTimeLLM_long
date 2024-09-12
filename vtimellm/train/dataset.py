@@ -8,8 +8,9 @@ import numpy as np
 from torch.utils.data import Dataset
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Sequence, List
+from itertools import chain
 
-from vtimellm.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
+from vtimellm.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, SEG_START, SEG_END, TEMPORAL_TOKEN_INDEX
 from vtimellm import conversation as conversation_lib
 from vtimellm.mm_utils import tokenizer_image_token
 
@@ -20,6 +21,7 @@ class DataArguments:
     lazy_preprocess: bool = False
     feat_folder: Optional[str] = field(default=None)
     num_features_per_video: Optional[int] = field(default=100)
+    add_temporal_tokens: Optional[bool] = field(default=False)
 
 def _tokenize_fn(strings: Sequence[str],
                  tokenizer: transformers.PreTrainedTokenizer) -> Dict:
@@ -242,6 +244,15 @@ def preprocess_v1(
             max_length=tokenizer.model_max_length,
             truncation=True,
         ).input_ids
+    # <SEG_START>: 32000 <SEG_END>: 32001
+    # TODO: get <SEG_START> index from tokenizer
+    segment_start_indices = torch.where(input_ids[0,:] == 32000)[0]+1
+    segment_end_indices = torch.where(input_ids[0,:] == 32001)[0]-1
+    assert torch.all(segment_end_indices==segment_start_indices+1), "segment end != segment start + 1"
+    segment_indices = list(chain(*zip(segment_start_indices, segment_end_indices)))
+    segment_indices = torch.tensor(segment_indices)
+    # input_ids[0, segment_indices] = TEMPORAL_TOKEN_INDEX
+    input_ids[0, segment_indices] = TEMPORAL_TOKEN_INDEX 
 
     targets = input_ids.clone()
 
@@ -272,8 +283,15 @@ def preprocess_v1(
                 instruction_len = len(tokenizer(parts[0]).input_ids) - 2
 
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            # <SEG_START>: 32000 <SEG_END>: 32001
+            # TODO: get <SEG_START> id from tokenizer
+            start_indices = torch.where(target == 32000)[0]
+            end_indices = torch.where(target == 32001)[0]
+            for i, index in enumerate(start_indices):
+                target[index+1 : end_indices[i]] = IGNORE_INDEX 
 
             cur_len += round_len
+
         target[cur_len:] = IGNORE_INDEX
 
         if cur_len < tokenizer.model_max_length:
@@ -287,6 +305,7 @@ def preprocess_v1(
     return dict(
         input_ids=input_ids,
         labels=targets,
+        segment_indices=segment_indices,
     )
 
 
@@ -325,6 +344,7 @@ def preprocess(
     3. Tokenize the concatenated conversation;
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
+    assert conversation_lib.default_conversation.version.startswith("v1"), "only v1 is implemented"
     if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.PLAIN:
         return preprocess_plain(sources, tokenizer)
     if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.LLAMA_2:
@@ -386,24 +406,45 @@ class LazySupervisedDataset(Dataset):
 
         if 'meta' in source:
             def convert(duration, x, num_features_per_video):
-                x = x / duration * num_features_per_video 
-                x = str(min(round(x), (num_features_per_video-1)))
-                if num_features_per_video > 100:
-                    if len(x) == 1:
-                        x = "00" + x
-                    elif len(x) == 2:
-                        x = "0" + x
+                if self.data_args.add_temporal_tokens:
+                    x = float(x / duration)
+                    return x
                 else:
-                    if len(x) == 1:
-                        x = "0" + x
-                return x
+                    x = x / duration * num_features_per_video 
+                    x = str(min(round(x), (num_features_per_video-1)))
+                    if num_features_per_video > 100:
+                        if len(x) == 1:
+                            x = "00" + x
+                        elif len(x) == 2:
+                            x = "0" + x
+                    else:
+                        if len(x) == 1:
+                            x = "0" + x
+                    return x
 
             replace_set = []
+            segments = []
             for k, v in source['meta']['token'].items():
                 replace_set.append((k, convert(source['meta']['duration'], v, self.num_features_per_video)))
             for l in range(len(source['conversations'])):
-                for x1, x2 in replace_set:
-                    source['conversations'][l]['value'] = source['conversations'][l]['value'].replace(x1, x2)
+                for i, item in enumerate(replace_set):
+                    x1, x2 = item
+                    if self.data_args.add_temporal_tokens:
+                        if x1 in source['conversations'][l]['value']:
+                            segments.append(x2)
+                        if i % 2 == 0:
+                            # source['conversations'][l]['value'] = source['conversations'][l]['value'].replace(f"{x1} to", f"<SEG_START> {x2}")
+                            source['conversations'][l]['value'] = source['conversations'][l]['value'].replace(f"{x1} to", f"<SEG_START> time")
+                        else:
+                            # source['conversations'][l]['value'] = source['conversations'][l]['value'].replace(x1, f"{x2} <SEG_END>")
+                            source['conversations'][l]['value'] = source['conversations'][l]['value'].replace(x1, f"time <SEG_END>")
+                    else:
+                        source['conversations'][l]['value'] = source['conversations'][l]['value'].replace(x1, x2)
+                    
+
+            # segments = [item[1] for item in replace_set]
+            segments = np.array(segments, dtype=np.float32)
+            segments = torch.from_numpy(segments)
 
 
         image = torch.zeros((self.num_features_per_video if data_type == 'video' else 1, 768), dtype=torch.float16)
@@ -431,9 +472,11 @@ class LazySupervisedDataset(Dataset):
                 has_image=True)
         if isinstance(i, int):
             data_dict = dict(input_ids=data_dict["input_ids"][0],
-                             labels=data_dict["labels"][0])
+                             labels=data_dict["labels"][0],
+                             segment_indices=data_dict["segment_indices"])
 
         data_dict['image'] = image
+        data_dict['segment'] = segments
         return data_dict
 
 
@@ -467,6 +510,20 @@ class DataCollatorForSupervisedDataset(object):
                 batch['images'] = torch.stack(images)
             else:
                 batch['images'] = images
+
+
+        segments, segment_indices = tuple([instance[key] for instance in instances]
+                                  for key in ("segment", "segment_indices"))
+
+        # pad all sequences in segments to the maximum length 
+        # [[0.0, 0.5], [0.1, 0.2, 0.3, 0.4]] -> [[0.0, 0.5, -1, -1], [0.1, 0.2, 0.3, 0.4]]
+        segments = torch.nn.utils.rnn.pad_sequence(segments, batch_first=True, padding_value=-1)
+        segment_indices = torch.nn.utils.rnn.pad_sequence(segment_indices, batch_first=True, padding_value=-1)
+        segment_mask = segments.ne(-1)
+
+        batch['segments'] = segments
+        batch['segment_indices'] = segment_indices
+        batch['segment_mask'] = segment_mask
 
 
         # batched image shape: [bs, N_frames, 768]

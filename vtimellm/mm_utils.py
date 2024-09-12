@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import decord
 from transformers import StoppingCriteria
-from vtimellm.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
+from vtimellm.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, SEG_START, SEG_END
 
 
 def load_image_from_base64(image):
@@ -48,8 +48,6 @@ def get_model_name_from_path(model_path):
         return model_paths[-2] + "_" + model_paths[-1]
     else:
         return model_paths[-1]
-
-
 
 
 class KeywordsStoppingCriteria(StoppingCriteria):
