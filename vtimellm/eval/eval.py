@@ -14,7 +14,7 @@ from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 from vtimellm.model.builder import load_pretrained_model
 from vtimellm.utils import disable_torch_init
 from vtimellm.mm_utils import VideoExtractor
-from vtimellm.inference import inference
+from vtimellm.inference import inference, temporal_segment_inference
 
 try:
     from torchvision.transforms import InterpolationMode
@@ -34,9 +34,13 @@ def parse_args():
     parser.add_argument("--data_path", type=str, default="vtimellm/eval/data_example.json")
     parser.add_argument("--feat_folder", type=str, default=None)
     parser.add_argument("--video_folder", type=str, default=None)
-    parser.add_argument("--task", type=str, default='grounding', choices=['all', 'grounding', 'captioning'])
+    parser.add_argument("--task", type=str, default='grounding', choices=['all', 'grounding', 'captioning', 'temporal_loss_eval'])
     parser.add_argument("--log_path", type=str, default='vtimellm/eval/log/example_log.txt')
     parser.add_argument("--num_features_per_video", type=int, default=100)
+    parser.add_argument("--temporal_loss", type=bool, default=False)
+    parser.add_argument("--projector_type", type=str, default="simple_linear")
+    parser.add_argument("--loss_type", type=str, default="vanilla")
+
     args = parser.parse_args()
     return args
 
@@ -139,3 +143,13 @@ if __name__ == "__main__":
                     u = iou(answer, gt, num_features_per_video=num_features_per_video)
                     # print(num_features_per_video, gt, answer, u, flush=True)
                     write_log(args.log_path, id, 'grounding', query_id, answer, info={"sentence_id": sentence_id, 'iou': u})
+
+        if args.task in ['temporal_loss_eval', 'all']:
+            for sentence_id, (timestamps, sentence) in enumerate(zip(data['timestamps'], data['sentences'])):
+                sentence = sentence.strip().lower()
+                if sentence.endswith("."):
+                    sentence = sentence[:-1]
+
+                for query_id, query in enumerate(questions['grounding']):
+                    answer = temporal_segment_inference(model, features, "<video>\n" + query.format(sentence), tokenizer)
+                    print(answer, tokenizer.convert_tokens_to_ids("<SEG_START>"))

@@ -83,84 +83,117 @@ class VTimeLLMLlamaForCausalLM(LlamaForCausalLM, VTimeLLMMetaForCausalLM):
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
 
+        if self.get_model().model_args.temporal_loss:
 
 
-        if inputs_embeds is None:
-            (
-                input_ids,
-                position_ids,
-                attention_mask,
-                past_key_values,
-                inputs_embeds,
-                labels, 
-                new_segment_indices,
-            ) = self.prepare_inputs_labels_for_multimodal(
-                input_ids,
-                position_ids,
-                attention_mask,
-                past_key_values,
-                labels,
-                images,
-                segments,
-                segment_indices,
-                segment_mask,
+            if inputs_embeds is None:
+                (
+                    input_ids,
+                    position_ids,
+                    attention_mask,
+                    past_key_values,
+                    inputs_embeds,
+                    labels, 
+                    new_segment_indices,
+                ) = self.prepare_inputs_labels_for_multimodal_temporal_loss(
+                    input_ids,
+                    position_ids,
+                    attention_mask,
+                    past_key_values,
+                    labels,
+                    images,
+                    segments,
+                    segment_indices,
+                    segment_mask,
+                )
+
+            return_dict = True
+            output_hidden_states = True
+            outputs = super().forward(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                labels=labels,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
             )
 
-        return_dict = True
-        output_hidden_states = True
-        outputs = super().forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            labels=labels,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+            last_hidden_states = outputs.hidden_states[-1]
+            selected_features = []
+            for bs in range(last_hidden_states.shape[0]):
+                output_segment_indices = list(map(lambda x: x - 1, new_segment_indices[bs]))
+                selected_batch_features = last_hidden_states[bs, output_segment_indices, :]  # Shape: [seq_len, hidden_size]
+                selected_features.append(selected_batch_features)
+            selected_features = torch.cat(selected_features)
+            segments_predictions = self.segment_head(selected_features).flatten()
 
-        last_hidden_states = outputs.hidden_states[-1]
-        selected_features = []
-        for bs in range(last_hidden_states.shape[0]):
-            output_segment_indices = list(map(lambda x: x - 1, new_segment_indices[bs]))
-            selected_batch_features = last_hidden_states[bs, output_segment_indices, :]  # Shape: [seq_len, hidden_size]
-            selected_features.append(selected_batch_features)
-        selected_features = torch.cat(selected_features)
-        segments_predictions = self.segment_head(selected_features).flatten()
+            gt = []
 
-        gt = []
+            for bs in range(last_hidden_states.shape[0]):
+                # Filter out the -1 elements from the i-th batch
+                valid_elements = segments[bs][segments[bs] != -1]
+                
+                gt.extend(valid_elements)
 
-        for bs in range(last_hidden_states.shape[0]):
-            # Filter out the -1 elements from the i-th batch
-            valid_elements = segments[bs][segments[bs] != -1]
+            assert len(segments_predictions) == len(gt), "predicted segments should have the same length as groundtruth segments"
+
+            gt = torch.tensor(gt).to(segments_predictions.device)
+
+            if self.get_model().model_args.loss_type == "vanilla":
+                loss = outputs.loss
+            elif self.get_model().model_args.loss_type == "l1_loss":
+                l1_loss = nn.L1Loss()(segments_predictions, gt)
+                loss = outputs.loss + l1_loss 
+            elif self.get_model().model_args.loss_type == "giou_loss":
+                segments_predictions = segments_predictions.reshape(-1, 2)
+                gt = gt.reshape(-1, 2)
+                giou_loss = giou_1d_loss(segments_predictions, gt)
+                loss = outputs.loss + giou_loss 
+            elif self.get_model().model_args.loss_type == "l1_giou_loss":
+                l1_loss = nn.L1Loss()(segments_predictions, gt)
+                segments_predictions = segments_predictions.reshape(-1, 2)
+                gt = gt.reshape(-1, 2)
+                giou_loss = giou_1d_loss(segments_predictions, gt)
+                loss = outputs.loss + l1_loss + giou_loss 
             
-            gt.extend(valid_elements)
+            output = (outputs.logits,) + outputs[1:]
+            return (loss,) + output if loss is not None else output
 
-        assert len(segments_predictions) == len(gt), "predicted segments should have the same length as groundtruth segments"
+        else:
+            if inputs_embeds is None:
+                (
+                    input_ids,
+                    position_ids,
+                    attention_mask,
+                    past_key_values,
+                    inputs_embeds,
+                    labels
+                ) = self.prepare_inputs_labels_for_multimodal(
+                    input_ids,
+                    position_ids,
+                    attention_mask,
+                    past_key_values,
+                    labels,
+                    images
+                )
 
-        gt = torch.tensor(gt).to(segments_predictions.device)
+            return super().forward(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                labels=labels,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict
+            )
 
-        if self.get_model().model_args.loss_type == "vanilla":
-            loss = outputs.loss
-        elif self.get_model().model_args.loss_type == "l1_loss":
-            l1_loss = nn.L1Loss()(segments_predictions, gt)
-            loss = outputs.loss + l1_loss 
-        elif self.get_model().model_args.loss_type == "giou_loss":
-            segments_predictions = segments_predictions.reshape(-1, 2)
-            gt = gt.reshape(-1, 2)
-            giou_loss = giou_1d_loss(segments_predictions, gt)
-            loss = outputs.loss + giou_loss 
-        elif self.get_model().model_args.loss_type == "l1_giou_loss":
-            l1_loss = nn.L1Loss()(segments_predictions, gt)
-            segments_predictions = segments_predictions.reshape(-1, 2)
-            gt = gt.reshape(-1, 2)
-            giou_loss = giou_1d_loss(segments_predictions, gt)
-            loss = outputs.loss + l1_loss + giou_loss 
-        
-        output = (outputs.logits,) + outputs[1:]
-        return (loss,) + output if loss is not None else output
         
 
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):

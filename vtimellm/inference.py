@@ -23,7 +23,7 @@ import numpy as np
 import clip
 
 
-def inference(model, image, query, tokenizer, do_sample=True):
+def inference(model, image, query, tokenizer, do_sample=False):
     conv = conv_templates["v1"].copy()
     conv.append_message(conv.roles[0], query)
     conv.append_message(conv.roles[1], None)
@@ -57,6 +57,42 @@ def inference(model, image, query, tokenizer, do_sample=True):
         outputs = outputs[:-len(stop_str)]
     outputs = outputs.strip()
     return outputs
+
+def temporal_segment_inference(model, image, query, tokenizer, do_sample=False):
+    conv = conv_templates["v1"].copy()
+    conv.append_message(conv.roles[0], query)
+    conv.append_message(conv.roles[1], None)
+    prompt = conv.get_prompt()
+    return prompt
+    # input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+    #
+    # stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+    # keywords = [stop_str]
+    # stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
+    #
+    # with torch.inference_mode():
+    #     output_ids = model.generate(
+    #         input_ids,
+    #         images=image[None,].cuda(),
+    #         do_sample=do_sample,
+    #         temperature=0.05,
+    #         num_beams=1,
+    #         # no_repeat_ngram_size=3,
+    #         max_new_tokens=1024,
+    #         use_cache=True)
+    #
+    #     # https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py#L1295
+    #
+    # input_token_len = input_ids.shape[1]
+    # n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
+    # if n_diff_input_output > 0:
+    #     print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
+    # outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
+    # outputs = outputs.strip()
+    # if outputs.endswith(stop_str):
+    #     outputs = outputs[:-len(stop_str)]
+    # outputs = outputs.strip()
+    # return outputs
 
 
 
