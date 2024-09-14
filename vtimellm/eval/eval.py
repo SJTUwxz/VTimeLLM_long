@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument("--task", type=str, default='grounding', choices=['all', 'grounding', 'captioning', 'temporal_loss_eval'])
     parser.add_argument("--log_path", type=str, default='vtimellm/eval/log/example_log.txt')
     parser.add_argument("--num_features_per_video", type=int, default=100)
-    parser.add_argument("--temporal_loss", type=bool, default=False)
+    parser.add_argument("--temporal_loss", type=str, default=False)
     parser.add_argument("--projector_type", type=str, default="simple_linear")
     parser.add_argument("--loss_type", type=str, default="vanilla")
 
@@ -53,6 +53,15 @@ def iou(outputs, gt, num_features_per_video):
         return 0
     from_number = float(matches.group(1)) / num_features_per_video 
     to_number = float(matches.group(3)) / num_features_per_video
+    s, e = gt
+    intersection = max(0, min(to_number, e) - max(from_number, s))
+    union = max(to_number, e) - min(from_number, s)
+    iou = intersection / union
+    return round(iou, 2)
+
+def segment_iou(outputs, gt):
+    from_number = float(outputs[0]) 
+    to_number = float(outputs[1])
     s, e = gt
     intersection = max(0, min(to_number, e) - max(from_number, s))
     union = max(to_number, e) - min(from_number, s)
@@ -80,6 +89,9 @@ questions = {
 if __name__ == "__main__":
     args = parse_args()
     num_features_per_video = args.num_features_per_video
+    temporal_loss = args.temporal_loss
+    if temporal_loss == "True": args.temporal_loss=True
+    else: args.temporal_loss=False
 
     disable_torch_init()
     tokenizer, model, context_len = load_pretrained_model(args, args.stage2, args.stage3)
@@ -151,5 +163,12 @@ if __name__ == "__main__":
                     sentence = sentence[:-1]
 
                 for query_id, query in enumerate(questions['grounding']):
-                    answer = temporal_segment_inference(model, features, "<video>\n" + query.format(sentence), tokenizer)
-                    print(answer, tokenizer.convert_tokens_to_ids("<SEG_START>"))
+                    answer = temporal_segment_inference(model, features, "<video>\n" + query.format(sentence), tokenizer, args)
+                    gt = (timestamps[0] / data['duration'], timestamps[1] / data['duration'])
+                    if not args.temporal_loss:
+                        u = iou(answer, gt, num_features_per_video=num_features_per_video)
+                    else:
+                        u = segment_iou(answer, gt)
+                    # print(num_features_per_video, gt, answer, u, flush=True)
+                    write_log(args.log_path, id, 'grounding', query_id, answer, info={"sentence_id": sentence_id, 'iou': u})
+                    print(answer, gt, u)

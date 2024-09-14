@@ -57,10 +57,12 @@ class VTimeLLMLlamaForCausalLM(LlamaForCausalLM, VTimeLLMMetaForCausalLM):
         self.pretraining_tp = config.pretraining_tp
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        # TODO: segment_head should be added when temporal_loss in model arguments is set to True
         self.segment_head = nn.Linear(config.hidden_size, 1)
 
         # Initialize weights and apply final processing
         self.post_init()
+
 
     def get_model(self):
         return self.model
@@ -81,12 +83,13 @@ class VTimeLLMLlamaForCausalLM(LlamaForCausalLM, VTimeLLMMetaForCausalLM):
         segment_mask: Optional[torch.Tensor] = None,
         segment_indices: Optional[torch.Tensor] = None,
         return_dict: Optional[bool] = None,
+        is_generate: Optional[bool] = False,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
 
-        if self.get_model().model_args.temporal_loss:
+        if self.get_model().model_args.temporal_loss and self.training:
 
 
-            if inputs_embeds is None:
+            if inputs_embeds is None and not is_generate:
                 (
                     input_ids,
                     position_ids,
@@ -164,7 +167,7 @@ class VTimeLLMLlamaForCausalLM(LlamaForCausalLM, VTimeLLMMetaForCausalLM):
             return (loss,) + output if loss is not None else output
 
         else:
-            if inputs_embeds is None:
+            if inputs_embeds is None and not is_generate:
                 (
                     input_ids,
                     position_ids,

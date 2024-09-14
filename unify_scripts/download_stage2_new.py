@@ -1,6 +1,7 @@
 import argparse
 import os
 from multiprocessing import Pool
+import pickle as pkl
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--source_path", required=True, type=str)
@@ -23,13 +24,14 @@ with open(source_path, "r") as f:
 
 print("Start downloading.")
 
-video_names = []
-for name in packed_data:
-    video_names.append(name["id"])
+video_names = pkl.load(open("./download_ids.pkl", "rb"))
+exist_ids = pkl.load(open("./exist_ids.pkl", "rb"))
+to_download = [x for x in video_names if x not in exist_ids]
+#exist_videos=[]
+video_names=video_names[::-1]
 
 youtube_video_format = "https://www.youtube.com/watch?v={}"
 video_path_format = os.path.join(video_path, "{}.mp4")
-
 
 def download(video_name):
     try:
@@ -42,8 +44,8 @@ def download(video_name):
     except:
         print(f"Downloading of Video {video_name} has failed.")
 
-
-pool = Pool(32)
-pool.map(download, video_names)
+pool = Pool(16)
+pool.map(download, to_download)
 # for video_name in video_names:
 print("Finished.")
+

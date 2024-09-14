@@ -5,6 +5,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig, BitsAn
 import torch
 from vtimellm.model import *
 from peft import PeftModel
+from vtimellm.constants import SEG_END, SEG_START
 
 def load_lora(model, lora_path):
     non_lora_trainables_path = os.path.join(lora_path, 'non_lora_trainables.bin')
@@ -37,7 +38,10 @@ def load_pretrained_model(args, stage2=None, stage3=None):
         if model.lm_head.weight.shape[0] != token_num:
             model.lm_head.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
             model.model.embed_tokens.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
-
+    
+    if args.temporal_loss:
+        num_new_tokens = tokenizer.add_tokens([SEG_START, SEG_END], special_tokens=True)
+        model.resize_token_embeddings(len(tokenizer))
 
     # load stage1:
     model.get_model().initialize_vision_modules(args)

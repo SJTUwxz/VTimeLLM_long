@@ -303,7 +303,9 @@ class VTimeLLMMetaForCausalLM(ABC):
         # if past_key_values:
         #     print(past_key_values[-1][-1].shape)
         # print(input_ids.shape, position_ids.shape, attention_mask.shape, past_key_values.shape, images)
+        # TODO: remove input_ids.shape[1] == 1 because of the evaluation forward function
         if images is None or input_ids.shape[1] == 1:
+        # if images is None:
             if past_key_values is not None and images is not None and input_ids.shape[1] == 1:
                 if self.get_model().config.model_type == 'chatglm':
                     target_shape = past_key_values[-1][-1].shape[0] + 1

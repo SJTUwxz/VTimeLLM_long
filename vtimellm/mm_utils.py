@@ -5,7 +5,8 @@ import numpy as np
 import torch
 import decord
 from transformers import StoppingCriteria
-from vtimellm.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, SEG_START, SEG_END
+from vtimellm.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, SEG_START, SEG_END, TEMPORAL_TOKEN_INDEX
+from itertools import groupby
 
 
 def load_image_from_base64(image):
@@ -30,6 +31,52 @@ def tokenizer_image_token(prompt, tokenizer, image_token_index=IMAGE_TOKEN_INDEX
     elif tokenizer.name == "GLMTokenizer":
         offset = 2
         input_ids = prompt_chunks[0][:2]
+
+    for x in insert_separator(prompt_chunks, [image_token_index] * (offset + 1)):
+        input_ids.extend(x[offset:])
+
+    if return_tensors is not None:
+        if return_tensors == 'pt':
+            return torch.tensor(input_ids, dtype=torch.long)
+        raise ValueError(f'Unsupported tensor type: {return_tensors}')
+    return input_ids
+
+def split_list_by_values_with_indices(lst, values):
+    chunks = []
+    
+    # Track the index and group elements using groupby
+    current_chunk = []
+    for idx, item in enumerate(lst):
+        if item in values:
+            if current_chunk:
+                chunks.append(current_chunk)
+                current_chunk = []
+        else:
+            current_chunk.append(item)
+    
+    # Append the last chunk if non-empty
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
+
+def tokenizer_image_segment_token(prompt, tokenizer, image_token_index=IMAGE_TOKEN_INDEX, segment_token_index=TEMPORAL_TOKEN_INDEX, return_tensors=None):
+
+
+    prompt_chunks = [tokenizer(chunk).input_ids for chunk in prompt.split(DEFAULT_IMAGE_TOKEN)]
+
+    def insert_separator(X, sep):
+        return [ele for sublist in zip(X, [sep]*len(X)) for ele in sublist][:-1]
+
+    input_ids = []
+    offset = 0
+    if len(prompt_chunks) > 0 and len(prompt_chunks[0]) > 0 and prompt_chunks[0][0] == tokenizer.bos_token_id:
+        offset = 1
+        input_ids.append(prompt_chunks[0][0])
+    # TODO: check why tokenizer has no name
+    # elif tokenizer.name == "GLMTokenizer":
+    #     offset = 2
+    #     input_ids = prompt_chunks[0][:2]
 
     for x in insert_separator(prompt_chunks, [image_token_index] * (offset + 1)):
         input_ids.extend(x[offset:])
