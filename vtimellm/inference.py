@@ -65,79 +65,77 @@ def temporal_segment_inference(model, image, query, tokenizer,  args, do_sample=
     prompt = conv.get_prompt()
 
     # can also use the above inference but we want to test out replacing generate with forward
-    if not args.temporal_loss:
-        input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
-
-        stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
-        keywords = [stop_str]
-        stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
-
-        # original generate function
-        with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids,
-                images=image[None,].cuda(),
-                do_sample=do_sample,
-                temperature=0.05,
-                num_beams=1,
-                # no_repeat_ngram_size=3,
-                max_new_tokens=1024,
-                use_cache=True)
-
-            # https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py#L1295
-
-        input_token_len = input_ids.shape[1]
-        n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
-        if n_diff_input_output > 0:
-            print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
-        outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
-        outputs = outputs.strip()
-        if outputs.endswith(stop_str):
-            outputs = outputs[:-len(stop_str)]
-        outputs = outputs.strip()
-
-        with torch.inference_mode():
-            cached = None
-            inputs = input_ids.clone()
-            for i in range(20): # 20 as the max length here, as an ex
-                if cached is None:
-                    outputs = model(input_ids=inputs, images=image[None,].cuda(), return_dict=True, output_hidden_states=True, use_cache=True)
-                    cached = outputs.past_key_values
-                else:
-                    outputs = model(input_ids=pred_id, images=image[None,].cuda(), past_key_values=cached, return_dict=True, output_hidden_states=True, use_cache=True, is_generate=True)
-                    cached = outputs.past_key_values
-                pred_id = torch.argmax(outputs.logits[0, -1]).unsqueeze(0).unsqueeze(0)
-                inputs = torch.hstack((inputs, pred_id))
-
-            output_ids = inputs
-
-        input_token_len = input_ids.shape[1]
-        # make sure the input ids and the first elements of the output ids are the same
-        n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
-        if n_diff_input_output > 0:
-            print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
-        outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
-        outputs = outputs.strip()
-        if outputs.endswith(stop_str):
-            outputs = outputs[:-len(stop_str)]
-        outputs = outputs.strip()
-        return outputs
-    else:
+    # if not args.temporal_loss:
+    #     input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+    #
+    #     stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+    #     keywords = [stop_str]
+    #     stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
+    #
+    #     # original generate function
+    #     with torch.inference_mode():
+    #         output_ids = model.generate(
+    #             input_ids,
+    #             images=image[None,].cuda(),
+    #             do_sample=do_sample,
+    #             temperature=0.05,
+    #             num_beams=1,
+    #             # no_repeat_ngram_size=3,
+    #             max_new_tokens=1024,
+    #             use_cache=True)
+    #
+    #         # https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py#L1295
+    #
+    #     input_token_len = input_ids.shape[1]
+    #     n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
+    #     if n_diff_input_output > 0:
+    #         print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
+    #     outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
+    #     outputs = outputs.strip()
+    #     if outputs.endswith(stop_str):
+    #         outputs = outputs[:-len(stop_str)]
+    #     outputs = outputs.strip()
+    #
+    #     with torch.inference_mode():
+    #         cached = None
+    #         inputs = input_ids.clone()
+    #         for i in range(20): # 20 as the max length here, as an ex
+    #             if cached is None:
+    #                 outputs = model(input_ids=inputs, images=image[None,].cuda(), return_dict=True, output_hidden_states=True, use_cache=True)
+    #                 cached = outputs.past_key_values
+    #             else:
+    #                 outputs = model(input_ids=pred_id, images=image[None,].cuda(), past_key_values=cached, return_dict=True, output_hidden_states=True, use_cache=True, is_generate=True)
+    #                 cached = outputs.past_key_values
+    #             pred_id = torch.argmax(outputs.logits[0, -1]).unsqueeze(0).unsqueeze(0)
+    #             inputs = torch.hstack((inputs, pred_id))
+    #
+    #         output_ids = inputs
+    #
+    #     input_token_len = input_ids.shape[1]
+    #     # make sure the input ids and the first elements of the output ids are the same
+    #     n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
+    #     if n_diff_input_output > 0:
+    #         print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
+    #     outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
+    #     outputs = outputs.strip()
+    #     if outputs.endswith(stop_str):
+    #         outputs = outputs[:-len(stop_str)]
+    #     outputs = outputs.strip()
+    #     return outputs
+    if args.temporal_loss:
         input_ids = tokenizer_image_segment_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, TEMPORAL_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
         stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
         keywords = [stop_str]
         stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
-
-        output_ids = input_ids.clone()
         with torch.inference_mode():
             (
                 _,
-                position_ids,
-                attention_mask,
-                past_key_values,
+                _,
+                _,
+                _,
                 inputs_embeds,
-                labels, 
+                _, 
             ) = model.prepare_inputs_labels_for_multimodal(
                 input_ids,
                 position_ids=None,
@@ -149,7 +147,8 @@ def temporal_segment_inference(model, image, query, tokenizer,  args, do_sample=
             
             seg_start = None
             cached = None
-            for i in range(20): # 20 as the max length here, as an ex
+            next_token_embedding=None
+            for i in range(5): # 20 as the max length here, as an ex
                 if cached is None:
                     outputs = model(inputs_embeds=inputs_embeds, images=image[None,].cuda(), return_dict=True, output_hidden_states=True, use_cache=True)
                     cached = outputs.past_key_values
@@ -159,55 +158,48 @@ def temporal_segment_inference(model, image, query, tokenizer,  args, do_sample=
 
                 pred_id = torch.argmax(outputs.logits[:, -1, :], dim=-1)
                 # output_ids = torch.cat((output_ids, pred_id.unsqueeze(0)), dim=1)
-                if tokenizer.convert_ids_to_tokens(int(pred_id.item())) == SEG_START:
+                if tokenizer.convert_ids_to_tokens(int(pred_id.item())) == SEG_START and seg_start is None:
                     seg_start = i
+                    next_token_embedding = model.model.embed_tokens(pred_id.unsqueeze(0))
+                    continue
 
                 if seg_start is not None and i == seg_start + 1:
-                    seg_start_embedding = outputs.hidden_states[-1][:, -1, :]
+                    seg_start_embedding = outputs.hidden_states[-1]
                     seg_start_value = model.segment_head(seg_start_embedding)
-                    print("start", seg_start_value, flush=True)
 
                     if args.projector_type == "simple_linear":
                         temporal_features = model.get_model().temporal_projector(seg_start_value)
                     elif args.projector_type == "angular":
+                        seg_start_value = seg_start_value.to(torch.bfloat16)
                         temporal_features = model.get_model().func[0](seg_start_value)
+                        temporal_features = temporal_features.to(torch.float16)
                         temporal_features = model.get_model().temporal_projector(temporal_features)
                     else:
                         raise NotImplementedError("projector_type not implemented")
-                    next_token_embedding = temporal_features.unsqueeze(-2)
+                    next_token_embedding = temporal_features
+                    continue
 
                 elif seg_start is not None and i == seg_start + 2:
-                    seg_end_embedding = outputs.hidden_states[-1][:, -1, :]
+                    seg_end_embedding = outputs.hidden_states[-1]
                     seg_end_value = model.segment_head(seg_end_embedding)
-                    print("end", seg_end_value, flush=True)
 
                     if args.projector_type == "simple_linear":
                         temporal_features = model.get_model().temporal_projector(seg_end_value)
                     elif args.projector_type == "angular":
+                        seg_end_value = seg_end_value.to(torch.bfloat16)
                         temporal_features = model.get_model().func[0](seg_end_value)
+                        temporal_features = temporal_features.to(torch.float16)
                         temporal_features = model.get_model().temporal_projector(temporal_features)
+                        # temporal_features = temporal_features.to(torch.float16)
+                        # seg_end_value = seg_end_value.to(torch.float16)
                     else:
                         raise NotImplementedError("projector_type not implemented")
-                    next_token_embedding = temporal_features.unsqueeze(-2)
-                elif seg_start is not None and i == seg_start + 3:
-                    if tokenizer.convert_ids_to_tokens(int(pred_id.item())) == SEG_END:
-                        break
-                else:
-                    next_token_embedding = model.get_model().embed_tokens(pred_id.unsqueeze(0))
-                # inputs_embeds = next_token_embedding
+                    next_token_embedding = temporal_features
+                    print(seg_start, seg_start_value, seg_end_value, tokenizer.convert_ids_to_tokens(int(pred_id.item())), flush=True)
+                    break
+                if next_token_embedding is None:
+                    next_token_embedding = model.model.embed_tokens(pred_id.unsqueeze(0))
 
-            # https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py#L1295
-
-        # input_token_len = input_ids.shape[1]
-        # # make sure the input ids and the first elements of the output ids are the same
-        # n_diff_input_output = (input_ids != output_ids[:, :input_token_len]).sum().item()
-        # if n_diff_input_output > 0:
-        #     print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
-        # outputs = tokenizer.batch_decode(output_ids[:, input_token_len:], skip_special_tokens=True)[0]
-        # outputs = outputs.strip()
-        # if outputs.endswith(stop_str):
-        #     outputs = outputs[:-len(stop_str)]
-        # outputs = outputs.strip()
         outputs = [seg_start_value.cpu().detach().item(), seg_end_value.cpu().detach().item()]
         return outputs
 

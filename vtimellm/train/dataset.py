@@ -22,6 +22,7 @@ class DataArguments:
     feat_folder: Optional[str] = field(default=None)
     num_features_per_video: Optional[int] = field(default=100)
     add_temporal_tokens: Optional[bool] = field(default=False)
+    predict_center_offset: Optional[bool] = field(default=False)
 
 def _tokenize_fn(strings: Sequence[str],
                  tokenizer: transformers.PreTrainedTokenizer) -> Dict:
@@ -444,6 +445,18 @@ class LazySupervisedDataset(Dataset):
 
             # segments = [item[1] for item in replace_set]
             segments = np.array(segments, dtype=np.float32)
+
+            if self.data_args.predict_center_offset:
+
+                segments = segments.reshape(-1, 2)
+
+                centers = np.mean(segments, axis=1)
+
+                offsets = (segments[:, 1] - segments[:, 0]) / 2
+
+                result = np.column_stack((centers, offsets)).reshape(-1)
+                segments = result
+
             segments = torch.from_numpy(segments)
 
 

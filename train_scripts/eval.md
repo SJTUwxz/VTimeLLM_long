@@ -101,15 +101,18 @@ rm -rf $output_dir
 mkdir -p $output_dir
 sbatch --gpus=$ngpus -o ${output_dir}/%j.out -J ${exp_name} -N 1 $SLURM_ARGS --wrap="python vtimellm/eval/eval.py --data_path ./data/vtimellm_eval/val_2.json --feat_folder ./data/vtimellm_train/stage3_clip_feat/ --log_path ${output_dir}/released_checkpoint_output.log --model_base ./checkpoints/vicuna-7b-v1.5/ --stage2 checkpoints/l1_loss_exps/${exp_name} --temporal_loss ${temporal_loss} --task temporal_loss_eval --projector_type ${projector_type}"
 
+for checkpoint in `seq 1500 500 4500`; do
+checkpoint=500
 ngpus=1
 temporal_loss=True
 projector_type="angular"
 loss_type="l1_loss"
-exp_name=vtimellm-stage2-${num_features_per_video}-${lr}-${projector_type}-${loss_type}
-output_dir=./checkpoints/l1_loss_exps/${exp_name}-test
+exp_name=vtimellm-stage2-${num_features_per_video}-${lr}-${projector_type}-${loss_type}-centeroffset
+output_dir=./checkpoints/l1_loss_exps/${exp_name}-ckpt${checkpoint}-eval
 rm -rf $output_dir
 mkdir -p $output_dir
-sbatch --gpus=$ngpus -o ${output_dir}/%j.out -J ${exp_name} -N 1 $SLURM_ARGS --wrap="python vtimellm/eval/eval.py --data_path ./data/vtimellm_eval/val_2.json --feat_folder ./data/vtimellm_train/stage3_clip_feat/ --log_path ${output_dir}/released_checkpoint_output.log --model_base ./checkpoints/vicuna-7b-v1.5/ --stage2 checkpoints/l1_loss_exps/${exp_name} --temporal_loss ${temporal_loss} --task temporal_loss_eval --projector_type ${projector_type}"
+sbatch --gpus=$ngpus -o ${output_dir}/%j.out -J ${exp_name} -N 1 $SLURM_ARGS --wrap="python vtimellm/eval/eval.py --data_path ./data/vtimellm_eval/val_2.json --feat_folder ./data/vtimellm_train/stage3_clip_feat/ --log_path ${output_dir}/released_checkpoint_output.log --model_base ./checkpoints/vicuna-7b-v1.5/ --stage2 checkpoints/l1_loss_exps/${exp_name}/checkpoint-${checkpoint}/ --temporal_loss ${temporal_loss} --task temporal_loss_eval --projector_type ${projector_type}"
+done
 
 
 ```

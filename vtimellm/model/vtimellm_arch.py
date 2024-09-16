@@ -132,8 +132,11 @@ class VTimeLLMMetaForCausalLM(ABC):
         if self.get_model().model_args.projector_type == "simple_linear":
             temporal_features = self.get_model().temporal_projector(segments)
         elif self.get_model().model_args.projector_type == "angular":
+            segments = segments.to(torch.bfloat16)
             temporal_features = self.get_model().func[0](segments)
             temporal_features = self.get_model().temporal_projector(temporal_features)
+            # temporal_features = temporal_features.to(torch.float16)
+            # segments = segments.to(torch.float16)
         # temporal_features shape: [batch, max_seq_len, hidden_size]
 
 
@@ -223,14 +226,12 @@ class VTimeLLMMetaForCausalLM(ABC):
                         cur_segment_idx += 1
                         cur_new_input_embeds.append(cur_temporal_features)
                         cur_new_labels.append(torch.full((cur_temporal_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
+            assert cur_segment_idx == num_segments, "number of segments should match number of temporal features"
 
             cur_new_input_embeds = torch.cat(cur_new_input_embeds)
             cur_new_labels = torch.cat(cur_new_labels)
             
-            #  move segment_indices to the left
-            # cur_segment_indices = list(map(lambda x: x - 1, cur_segment_indices))
             new_segment_indices.append(cur_segment_indices)
-
 
             new_input_embeds.append(cur_new_input_embeds)
             new_labels.append(cur_new_labels)

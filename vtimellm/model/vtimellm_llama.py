@@ -89,6 +89,7 @@ class VTimeLLMLlamaForCausalLM(LlamaForCausalLM, VTimeLLMMetaForCausalLM):
         if self.get_model().model_args.temporal_loss and self.training:
 
 
+            old_input_ids = input_ids.clone()
             if inputs_embeds is None and not is_generate:
                 (
                     input_ids,
@@ -129,6 +130,9 @@ class VTimeLLMLlamaForCausalLM(LlamaForCausalLM, VTimeLLMMetaForCausalLM):
             selected_features = []
             for bs in range(last_hidden_states.shape[0]):
                 output_segment_indices = list(map(lambda x: x - 1, new_segment_indices[bs]))
+                # seg_start_indices = list(map(lambda x: x - 100, new_segment_indices[bs]))
+                # print(old_input_ids[bs, seg_start_indices], flush=True) output: 32000 -300 32000 -300 ...
+                # print(old_input_ids.shape, last_hidden_states.shape, flush=True) output: torch.Size([8, 162]) torch.Size([8, 261, 4096])
                 selected_batch_features = last_hidden_states[bs, output_segment_indices, :]  # Shape: [seq_len, hidden_size]
                 selected_features.append(selected_batch_features)
             selected_features = torch.cat(selected_features)
