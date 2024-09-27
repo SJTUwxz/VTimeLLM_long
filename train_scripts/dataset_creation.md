@@ -4,11 +4,11 @@
 ```bash
 
 for i in `seq 1 16`; do
-  sbatch --gpus 1 -n 1 -J internvid/${i} --out /mnt/mir/datasets/vlm-datasets/InternVid-10M-FLT/${i}.out \
+  sbatch -A r00371 -p gpu --nodes 1 --gpus 1 --time 02-00:00:00 --gpus 1 -J internvid/${i} --out ./${i}.out \
       $SLURM_ARGS --wrap="python unify_scripts/clip_all_features.py \
-          --video_folder /mnt/mir/datasets/vlm-datasets/InternVid-cut-videos-ffmpeg/ \
-          --save_dir /mnt/mir/datasets/vlm-datasets/InternVid-10M-FLT/InternVid_clip_all_features/ \
-          --data_path ./data/vtimellm_train/stage2.json
+          --video_folder ../InternVid-cut-videos-ffmpeg/ \
+          --save_dir ../InternVid_clip_all_features/ \
+          --data_path ../stage2.json
   "
 done
 ```

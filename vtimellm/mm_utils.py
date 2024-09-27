@@ -146,17 +146,17 @@ class VideoExtractor():
         
         try:
             video_reader = decord.VideoReader(video_path)
-        total_frames = len(video_reader)
-        start = 0
-        end = total_frames - 1
+            total_frames = len(video_reader)
+            start = 0
+            end = total_frames - 1
 
-        split = data.get('split', None)
-        if split is not None:
-            fps = video_reader.get_avg_fps()
-            start = max(int(fps * split[0]), 0)
-            end = min(int(fps * split[1]), total_frames - 1)
-        sampled_indices = np.linspace(start, end, self.N, dtype=np.int32)
-        sampled_frames = video_reader.get_batch(sampled_indices).asnumpy()
+            split = data.get('split', None)
+            if split is not None:
+                fps = video_reader.get_avg_fps()
+                start = max(int(fps * split[0]), 0)
+                end = min(int(fps * split[1]), total_frames - 1)
+            sampled_indices = np.linspace(start, end, self.N, dtype=np.int32)
+            sampled_frames = video_reader.get_batch(sampled_indices).asnumpy()
         except Exception as e:
             print(e)
             return None, torch.zeros(1)
