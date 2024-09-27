@@ -1,3 +1,18 @@
+
+# InternVid dataset
+
+```bash
+
+for i in `seq 1 16`; do
+  sbatch --gpus 1 -n 1 -J internvid/${i} --out /mnt/mir/datasets/vlm-datasets/InternVid-10M-FLT/${i}.out \
+      $SLURM_ARGS --wrap="python unify_scripts/clip_all_features.py \
+          --video_folder /mnt/mir/datasets/vlm-datasets/InternVid-cut-videos-ffmpeg/ \
+          --save_dir /mnt/mir/datasets/vlm-datasets/InternVid-10M-FLT/InternVid_clip_all_features/ \
+          --data_path ./data/vtimellm_train/stage2.json
+  "
+done
+```
+
 # Charades STA dataset
 
 ```bash
@@ -19,6 +34,13 @@ for i in `seq 1 24`; do
           --video_folder /mnt/mir/datasets/vlm-evaluation-datasets/Charades-STA/Charades_v1_480/ \
           --save_dir /mnt/mir/datasets/vlm-evaluation-datasets/Charades-STA/clip_features_400/ \
           --num_features 400 \
+  "
+done
+
+# 100 frames, 1 CLS + 64 patch features per frame
+for i in `seq 1 4`; do
+  sbatch -p h100 --gpus 1 -n 1 -J anet/clip_features/${i} --out ${i}.out \
+      $SLURM_ARGS --wrap="python unify_scripts/clip_all_features.py --video_folder /mnt/mir/datasets/vlm-evaluation-datasets/Charades-STA/Charades_v1_480/ --save_dir /mnt/mir/datasets/vlm-evaluation-datasets/Charades-STA/clip_all_features_100frm/ --data_path ./data/vtimellm_eval/charades_sta_test.json
   "
 done
 
@@ -44,6 +66,13 @@ for i in `seq 1 24`; do
           --video_folder /mnt/mir/datasets/vlm-evaluation-datasets/ActivityNet-Captions/activity_net_2fps_360/ \
           --save_dir /mnt/mir/datasets/vlm-evaluation-datasets/ActivityNet-Captions/clip_features_400/ \
           --num_features 400 \
+  "
+done
+
+# 100 frames, 1 CLS + 64 patch features per frame
+for i in `seq 1 4`; do
+  sbatch -p h100 --gpus 1 -n 1 -J anet/clip_features/${i} --out ${i}.out \
+      $SLURM_ARGS --wrap="python unify_scripts/clip_all_features.py --video_folder /mnt/mir/datasets/vlm-evaluation-datasets/ActivityNet-Captions/activity_net_2fps_360/ --save_dir  /mnt/mir/datasets/vlm-evaluation-datasets/ActivityNet-Captions/clip_all_features_100frm --data_path ./data/vtimellm_eval/val_2.json
   "
 done
 

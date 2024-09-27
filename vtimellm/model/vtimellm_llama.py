@@ -89,7 +89,6 @@ class VTimeLLMLlamaForCausalLM(LlamaForCausalLM, VTimeLLMMetaForCausalLM):
         if self.get_model().model_args.temporal_loss and self.training:
 
 
-            old_input_ids = input_ids.clone()
             if inputs_embeds is None and not is_generate:
                 (
                     input_ids,

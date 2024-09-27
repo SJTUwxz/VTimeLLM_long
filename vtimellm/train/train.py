@@ -277,6 +277,7 @@ def train():
             target_modules=find_all_linear_names(model),
             lora_dropout=training_args.lora_dropout,
             bias=training_args.lora_bias,
+            modules_to_save=['segment_head'],
             task_type="CAUSAL_LM",
         )
         if training_args.bits == 16:
@@ -355,7 +356,7 @@ def train():
                     module = module.to(torch.bfloat16)
             if 'norm' in name:
                 module = module.to(torch.float32)
-            if 'lm_head' in name or 'embed_tokens' in name:
+            if 'lm_head' in name or 'embed_tokens' in name or 'segment_head' in name:
                 if hasattr(module, 'weight'):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)

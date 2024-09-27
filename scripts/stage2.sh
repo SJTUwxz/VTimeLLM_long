@@ -5,8 +5,7 @@ MODEL_VERSION=vicuna-v1-5-7b
 MASTER_PORT=$(( ($RANDOM % 10000) + 20000 ))
 output_dir=$1
 gpu_vis=$2
-stage2_path=$3
-other_args=$4
+other_args=$3
 
 gradient_accumulation_steps=$((128 / (8 * gpu_vis)))
 
@@ -21,13 +20,13 @@ deepspeed --num_gpus ${gpu_vis} --master_port $MASTER_PORT vtimellm/train/train_
     --pretrain_mm_mlp_adapter ./checkpoints/vtimellm-vicuna-v1-5-7b-stage1/mm_projector.bin \
     --output_dir ${output_dir} \
     --bf16 True \
-    --num_train_epochs 2 \
+    --num_train_epochs 6 \
     --per_device_train_batch_size 8 \
     --gradient_accumulation_steps ${gradient_accumulation_steps} \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 50000 \
-    --save_total_limit 1 \
+    --save_steps 1000 \
+    --save_total_limit 100 \
     --learning_rate 1e-4 \
     --freeze_mm_mlp_adapter True \
     --lora_r 64 \

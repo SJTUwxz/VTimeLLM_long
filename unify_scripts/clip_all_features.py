@@ -2,7 +2,7 @@ import os
 root_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 import sys
 sys.path.append(root_dir)
-import clip
+# import clip
 import json
 from tqdm import tqdm
 from vtimellm.mm_utils import VideoExtractor
@@ -31,6 +31,8 @@ def parse_args():
     parser.add_argument("--video_folder", type=str, default="/mnt/mir/datasets/vlm-evaluation-datasets/nextqa/videos")
     parser.add_argument("--save_dir", type=str, default="/mnt/mir/datasets/vlm-evaluation-datasets/nextqa/clip_features/")
     parser.add_argument("--num_features", type=int, default=100)
+    parser.add_argument("--data_path", type=str)
+
     args = parser.parse_args()
 
     return args
@@ -43,84 +45,32 @@ if __name__ == "__main__":
 
     save_dir = args.save_dir
 
+
     model = CLIPVisionModelWithProjection.from_pretrained("openai/clip-vit-large-patch14")
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
     model = model.cuda()
 
     video_loader = VideoExtractor(N=args.num_features)
 
-    # if os.path.exists("./data/vtimellm_train/internvid_info.pkl"):
-    #     all_vids = pkl.load(open("./data/vtimellm_train/internvid_info.pkl", "rb"))
-    #
-    # else:
-    #     all_vids = {}
-    #
-    #     for filename in glob(f'{video_folder}/*/*.mp4', recursive=True):
-    #         id = os.path.basename(filename)[:-4]
-    #         video_name = id[:11]
-    #         start, end = id[12:].split('_')
-    #
-    #         second, milisecond = start.split(".")
-    #         milisecond = "{:.1f}".format(float("0." + milisecond)) 
-    #         x = time.strptime(second,'%H:%M:%S')
-    #         start = datetime.timedelta(hours=x.tm_hour,minutes=x.tm_min,seconds=x.tm_sec).total_seconds() + float(milisecond)
-    #
-    #         second, milisecond = end.split(".")
-    #         milisecond = "{:.1f}".format(float("0." + milisecond)) 
-    #         x = time.strptime(second,'%H:%M:%S')
-    #         end = datetime.timedelta(hours=x.tm_hour,minutes=x.tm_min,seconds=x.tm_sec).total_seconds() + float(milisecond)
-    #
-    #         if video_name not in all_vids:
-    #             all_vids[video_name] = {"filename": [], "timestamps": []}
-    #         all_vids[video_name]["filename"].append(filename)
-    #         all_vids[video_name]["timestamps"].append((start, end))
-    #
-    #
-    #     pkl.dump(all_vids, open("./data/vtimellm_train/internvid_info.pkl", "wb"))
     
-    js = json.load(open("./data/vtimellm_train/momentor.json"))
-    #
-    # missing_num = 0
-    #
+    js = json.load(open(args.data_path))
     for data in tqdm(js):
-    #
-        id = data["id"]
-    #     # split = data["meta"]["split"]
-    #     # stage2_start, stage2_end = split
-    #
-    #     if id not in all_vids:
-    #         missing_num += 1
-    #         continue
-    #
-    #     filenames = all_vids[id]["filename"]
-    #     timestamps = all_vids[id]["timestamps"]
-    #
-    #     timestamps, filenames = zip(*sorted(zip(timestamps, filenames)))
-    #
-    #     start_file, end_file = 0, 0
-    #
-    #     for i, (st, ed) in enumerate(timestamps):
-    #         if st == stage2_start:
-    #             start_file = i
-    #         if ed == stage2_end:
-    #             end_file = i
-    #
-    #     if start_file == 0 and end_file == 0:
-    #         missing_num += 1
-    #         continue
-    #
-    #     print(id, split, timestamps[start_file: end_file +1] )
-    #
-    #
-    #     continue
-
+        if type(data) == str:
+            id = data
+        else:
+            id = data["id"]
 
         features = None
         save_npy = os.path.join(save_dir, str(id) + ".npy")
         if os.path.exists(save_npy):
             continue
-        else:
-            open(save_npy, 'w').close()
+        #     try:
+        #         feature = np.load(save_npy, allow_pickle=True)
+        #         continue
+        #     except:
+        #         open(save_npy, 'w').close()
+        # else:
+        #     open(save_npy, 'w').close()
 
         m = nn.AdaptiveAvgPool2d((8, 8)).cuda()
 

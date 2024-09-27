@@ -251,7 +251,7 @@ def preprocess_v1(
     segment_end_indices = torch.where(input_ids[0,:] == 32001)[0]-1
     assert torch.all(segment_end_indices==segment_start_indices+1), "segment end != segment start + 1"
     segment_indices = list(chain(*zip(segment_start_indices, segment_end_indices)))
-    segment_indices = torch.tensor(segment_indices)
+    segment_indices = torch.tensor(segment_indices).to(torch.long)
     # input_ids[0, segment_indices] = TEMPORAL_TOKEN_INDEX
     input_ids[0, segment_indices] = TEMPORAL_TOKEN_INDEX 
 

@@ -148,6 +148,7 @@ def temporal_segment_inference(model, image, query, tokenizer,  args, do_sample=
             seg_start = None
             cached = None
             next_token_embedding=None
+            print(model.model.temporal_projector.weight)
             for i in range(5): # 20 as the max length here, as an ex
                 if cached is None:
                     outputs = model(inputs_embeds=inputs_embeds, images=image[None,].cuda(), return_dict=True, output_hidden_states=True, use_cache=True)
